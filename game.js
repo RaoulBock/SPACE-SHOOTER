@@ -11,27 +11,66 @@ class SpaceShooter extends Phaser.Scene {
     }
   
     create() {
-      // Add scrolling background
-      this.background = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'background')
-        .setOrigin(0, 0);
+      // Background
+      this.background = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'background').setOrigin(0, 0);
   
       // Player setup
       this.player = this.physics.add.sprite(this.scale.width / 2, this.scale.height - 80, 'player');
       this.player.setCollideWorldBounds(true);
+      this.player.setVisible(false);
   
-      // Bullet group
+      // Groups
       this.bullets = this.physics.add.group();
-  
-      // Enemy group
       this.enemies = this.physics.add.group();
   
-      // Shooting
+      // Input
       this.cursors = this.input.keyboard.createCursorKeys();
       this.spacebar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-  
       this.lastFired = 0;
   
-      // Spawn enemies every 1.5 seconds
+      // Score
+      this.score = 0;
+      this.scoreText = this.add.text(20, 20, '', {
+        fontSize: '24px',
+        fill: '#fff',
+        stroke: '#000',
+        strokeThickness: 3
+      }).setVisible(false);
+  
+      // Start text
+      this.startText = this.add.text(this.scale.width / 2, this.scale.height / 2, 'Click or Press Space to Start', {
+        fontSize: '28px',
+        fill: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 4
+      }).setOrigin(0.5);
+  
+      // Game over text
+      this.gameOverText = this.add.text(this.scale.width / 2, this.scale.height / 2, '', {
+        fontSize: '28px',
+        fill: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 4
+      }).setOrigin(0.5);
+      
+      // Wait for player to start
+      this.input.once('pointerdown', this.startGame, this);
+      this.input.keyboard.once('keydown-SPACE', this.startGame, this);
+  
+      this.isGameOver = false;
+      this.gameStarted = false;
+    }
+  
+    startGame() {
+      this.gameStarted = true;
+      this.score = 0;
+      this.scoreText.setText('Score: 0').setVisible(true);
+      this.startText.setVisible(false);
+      this.player.setVisible(true);
+      this.player.setPosition(this.scale.width / 2, this.scale.height - 80);
+      this.physics.resume();
+  
+      // Enemy timer
       this.enemyTimer = this.time.addEvent({
         delay: 1500,
         callback: this.spawnEnemy,
@@ -39,31 +78,17 @@ class SpaceShooter extends Phaser.Scene {
         loop: true
       });
   
-      // Score
-      this.score = 0;
-      this.scoreText = this.add.text(20, 20, 'Score: 0', {
-        fontSize: '24px',
-        fill: '#fff',
-        stroke: '#000',
-        strokeThickness: 3
-      });
-  
-      // Collision: bullet hits enemy
       this.physics.add.overlap(this.bullets, this.enemies, this.hitEnemy, null, this);
-  
-      // Collision: enemy hits player
       this.physics.add.overlap(this.player, this.enemies, this.playerHit, null, this);
-  
-      this.isGameOver = false;
     }
   
     update(time) {
-      if (this.isGameOver) return;
+      if (!this.gameStarted || this.isGameOver) return;
   
       // Scroll background
       this.background.tilePositionY -= 1;
   
-      // Movement
+      // Player movement
       if (this.cursors.left.isDown) {
         this.player.setVelocityX(-300);
       } else if (this.cursors.right.isDown) {
@@ -72,26 +97,16 @@ class SpaceShooter extends Phaser.Scene {
         this.player.setVelocityX(0);
       }
   
-      // Shooting
+      // Shoot
       if (Phaser.Input.Keyboard.JustDown(this.spacebar) && time > this.lastFired + 300) {
         const bullet = this.bullets.create(this.player.x, this.player.y - 20, 'bullet');
         bullet.setVelocityY(-400);
         this.lastFired = time;
       }
   
-      // Remove off-screen bullets
-      this.bullets.getChildren().forEach(bullet => {
-        if (bullet.y < -bullet.height) {
-          bullet.destroy();
-        }
-      });
-  
-      // Remove off-screen enemies
-      this.enemies.getChildren().forEach(enemy => {
-        if (enemy.y > this.scale.height + enemy.height) {
-          enemy.destroy();
-        }
-      });
+      // Clean up
+      this.bullets.getChildren().forEach(b => { if (b.y < 0) b.destroy(); });
+      this.enemies.getChildren().forEach(e => { if (e.y > this.scale.height) e.destroy(); });
     }
   
     spawnEnemy() {
@@ -103,16 +118,17 @@ class SpaceShooter extends Phaser.Scene {
     hitEnemy(bullet, enemy) {
       bullet.destroy();
       enemy.destroy();
-  
       this.score += 10;
       this.scoreText.setText('Score: ' + this.score);
-    }
+    } 
   
     playerHit(player, enemy) {
       this.physics.pause();
       player.setTint(0xff0000);
       this.isGameOver = true;
       this.scoreText.setText('Game Over! Score: ' + this.score);
+  
+      this.gameOverText.setText('Game Over!\nClick or Press Space to Try Again');
   
       this.input.once('pointerdown', () => this.scene.restart(), this);
       this.input.keyboard.once('keydown-SPACE', () => this.scene.restart(), this);
